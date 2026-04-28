@@ -1,10 +1,14 @@
 const express = require("express");
 const cors = require("cors");
 const Database = require("better-sqlite3");
+const path = require("path");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// 🔊 раздача звуков
+app.use("/sounds", express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3000;
 
@@ -35,7 +39,7 @@ function genPromo() {
   return "PWR-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-/* ---------- FRONT (TV GAME) ---------- */
+/* ---------- FRONT ---------- */
 app.get("/", (req, res) => {
   res.send(`
 <!DOCTYPE html>
@@ -55,89 +59,59 @@ body{
   align-items:center;
 }
 
-/* TITLE */
-h1{
-  margin:20px;
-  color:#39FF14;
-  letter-spacing:2px;
-}
+/* title */
+h1{margin:20px;color:#39FF14}
 
-/* QUESTION */
-#question{
-  font-size:22px;
-  text-align:center;
-  margin:10px;
-  max-width:320px;
-  min-height:60px;
-}
+/* question */
+#question{font-size:24px;margin:10px;text-align:center}
 
-/* TIMER */
+/* timer */
 #timer{
-  font-size:32px;
+  font-size:36px;
   margin:10px;
   color:#ffcc00;
 }
-
-/* ROW */
-.row{
-  display:flex;
-  gap:8px;
-  margin:20px;
+.danger{
+  color:#ff3333;
+  animation:blink 0.5s infinite;
 }
+@keyframes blink{50%{opacity:0.3}}
+
+/* row */
+.row{display:flex;gap:10px;margin:20px}
 
 .cell{
-  width:52px;
-  height:52px;
+  width:55px;
+  height:55px;
   border:2px solid #444;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:24px;
+  font-size:26px;
   background:#111;
-}
-
-/* reveal animation */
-.reveal{
-  animation:reveal 0.3s ease;
-}
-
-@keyframes reveal{
-  0%{transform:scale(0)}
-  100%{transform:scale(1)}
 }
 
 .correct{background:#00cc66}
 .wrong{background:#cc3333}
 
-/* INPUT */
-input{
-  margin-top:15px;
-  padding:10px;
-  font-size:18px;
-  text-align:center;
-}
+/* reveal */
+.reveal{animation:reveal 0.3s}
+@keyframes reveal{0%{transform:scale(0)}100%{transform:scale(1)}}
 
-/* BUTTON */
-button{
-  margin-top:10px;
-  padding:10px 20px;
-  background:#39FF14;
-  border:none;
-  cursor:pointer;
+/* flash */
+#flash{
+  position:fixed;
+  top:0;left:0;width:100%;height:100%;
+  background:white;
+  opacity:0;
 }
+.show{animation:flash 0.3s}
+@keyframes flash{0%{opacity:0.8}100%{opacity:0}}
 
-/* WIN */
-#win{
-  display:none;
-  margin-top:20px;
-  font-size:26px;
-}
-
-/* PHONE */
-#phone{
-  display:none;
-  margin-top:20px;
-}
+/* phone */
+#phone{display:none;margin-top:20px}
+button{margin-top:10px;padding:10px 20px;background:#39FF14;border:none}
+input{padding:10px;text-align:center}
 </style>
 </head>
 
@@ -154,8 +128,6 @@ button{
 <br>
 <button onclick="submit()">OK</button>
 
-<div id="win"></div>
-
 <div id="phone">
   <input id="ph" placeholder="+380XXXXXXXXX"><br>
   <button onclick="send()">Отримати код</button>
@@ -165,6 +137,10 @@ button{
     <button onclick="verify()">OK</button>
   </div>
 </div>
+
+<h2 id="win"></h2>
+
+<div id="flash"></div>
 
 <script>
 const QUESTIONS = [
@@ -184,8 +160,23 @@ let timerInterval;
 const qDiv = document.getElementById("question");
 const rowDiv = document.getElementById("row");
 const timerDiv = document.getElementById("timer");
+const flash = document.getElementById("flash");
 
-/* ---------- START QUESTION ---------- */
+/* 🔊 real sounds */
+const sounds = {
+  correct: new Audio("/sounds/correct.mp3"),
+  wrong: new Audio("/sounds/wrong.mp3"),
+  tick: new Audio("/sounds/tick.mp3"),
+  win: new Audio("/sounds/win.mp3")
+};
+
+/* flash */
+function doFlash(){
+  flash.classList.add("show");
+  setTimeout(()=>flash.classList.remove("show"),300);
+}
+
+/* start question */
 function startQuestion(){
   const q = QUESTIONS[current];
 
@@ -201,16 +192,22 @@ function startQuestion(){
   startTimer();
 }
 
-/* ---------- TIMER ---------- */
+/* timer */
 function startTimer(){
   time = 10;
   timerDiv.innerText = time;
+  timerDiv.classList.remove("danger");
 
   clearInterval(timerInterval);
 
   timerInterval = setInterval(()=>{
     time--;
     timerDiv.innerText = time;
+
+    if(time <= 3){
+      timerDiv.classList.add("danger");
+      sounds.tick.play();
+    }
 
     if(time === 0){
       clearInterval(timerInterval);
@@ -219,7 +216,7 @@ function startTimer(){
   },1000);
 }
 
-/* ---------- SUBMIT ---------- */
+/* submit */
 function submit(){
   clearInterval(timerInterval);
 
@@ -241,13 +238,21 @@ function submit(){
   }
 
   if(val === ans){
-    setTimeout(next, ans.length * 200 + 500);
+    setTimeout(()=>{
+      sounds.correct.play();
+      doFlash();
+      next();
+    }, ans.length * 200 + 400);
   } else {
-    setTimeout(fail, ans.length * 200 + 500);
+    setTimeout(()=>{
+      sounds.wrong.play();
+      doFlash();
+      fail();
+    }, ans.length * 200 + 400);
   }
 }
 
-/* ---------- NEXT ---------- */
+/* next */
 function next(){
   current++;
   document.getElementById("input").value = "";
@@ -259,21 +264,22 @@ function next(){
   }
 }
 
-/* ---------- FAIL ---------- */
+/* fail */
 function fail(){
   alert("❌ Неправильно");
   location.reload();
 }
 
-/* ---------- WIN ---------- */
+/* win */
 function win(){
-  document.getElementById("win").style.display="block";
-  document.getElementById("win").innerText = "🎉 ПЕРЕМОГА!";
+  sounds.win.play();
+  doFlash();
 
+  document.getElementById("win").innerText = "🎉 ПЕРЕМОГА!";
   document.getElementById("phone").style.display="block";
 }
 
-/* ---------- SMS ---------- */
+/* SMS */
 async function send(){
   const phone = document.getElementById("ph").value;
 
@@ -307,7 +313,6 @@ async function verify(){
   }
 }
 
-/* ---------- START ---------- */
 startQuestion();
 </script>
 
@@ -346,7 +351,7 @@ app.post("/verify-code",(req,res)=>{
   res.json({success:true,promo});
 });
 
-/* ---------- START SERVER ---------- */
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("TV SHOW RUNNING ON PORT:", PORT);
+/* ---------- START ---------- */
+app.listen(PORT,"0.0.0.0",()=>{
+  console.log("PRODUCTION SHOW RUNNING:", PORT);
 });
