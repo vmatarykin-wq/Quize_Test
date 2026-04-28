@@ -7,18 +7,11 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-/* ---------------- ENTERPRISE HEADERS ---------------- */
-app.use((req, res, next) => {
-  res.setHeader("X-Robots-Tag", "noindex, nofollow");
-  next();
-});
-
-/* ---------------- MEMORY STORE (replace later with Redis) ---------------- */
+/* ----------- STORAGE ----------- */
 const smsStore = {};
 const users = {};
-const ipStore = {};
 
-/* ---------------- HELPERS ---------------- */
+/* ----------- HELPERS ----------- */
 function generateCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -27,158 +20,192 @@ function generatePromo() {
   return "PWR-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-function getIP(req) {
-  return (req.headers["x-forwarded-for"] || "")
-    .split(",")[0]
-    .trim() || req.socket.remoteAddress;
-}
+/* ----------- HEALTH ----------- */
+app.get("/health", (req, res) => res.send("OK"));
 
-function rateLimit(ip) {
-  const now = Date.now();
-  if (!ipStore[ip]) ipStore[ip] = [];
-
-  ipStore[ip] = ipStore[ip].filter(t => now - t < 10 * 60 * 1000);
-
-  if (ipStore[ip].length >= 5) return true;
-
-  ipStore[ip].push(now);
-  return false;
-}
-
-/* ---------------- HEALTH CHECK (RENDER CRITICAL) ---------------- */
-app.get("/health", (req, res) => {
-  res.status(200).send("OK");
-});
-
-/* ---------------- API ---------------- */
-app.post("/send-code", (req, res) => {
-  const { phone, consent, ageConfirmed } = req.body;
-  const ip = getIP(req);
-
-  if (!consent) return res.json({ success: false, error: "consent required" });
-  if (!ageConfirmed) return res.json({ success: false, error: "18+" });
-  if (rateLimit(ip)) return res.json({ success: false, error: "rate limit" });
-  if (!phone || !phone.match(/^\+380\d{9}$/))
-    return res.json({ success: false, error: "invalid phone" });
-  if (users[phone])
-    return res.json({ success: false, error: "already used" });
-
-  const code = generateCode();
-  smsStore[phone] = code;
-
-  console.log("[SMS]", phone, code);
-
-  setTimeout(() => {
-    if (smsStore[phone] === code) delete smsStore[phone];
-  }, 5 * 60 * 1000);
-
-  res.json({ success: true });
-});
-
-app.post("/verify-code", (req, res) => {
-  const { phone, code } = req.body;
-
-  if (!smsStore[phone])
-    return res.json({ success: false, error: "expired" });
-
-  if (smsStore[phone] !== code)
-    return res.json({ success: false, error: "wrong code" });
-
-  const promo = generatePromo();
-
-  users[phone] = true;
-  delete smsStore[phone];
-
-  res.json({ success: true, promo });
-});
-
-/* ---------------- ENTERPRISE CROSSWORD FRONTEND ---------------- */
+/* ----------- MAIN PAGE ----------- */
 app.get("/", (req, res) => {
   res.send(`
 <!DOCTYPE html>
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
-<title>PARALLEL ENTERPRISE CROSSWORD</title>
+<title>Parallel WOW Crossword</title>
+
 <style>
-body {
+body{
   margin:0;
   font-family: Arial;
-  background:#050805;
+  background: radial-gradient(circle,#061006,#000);
   color:#39FF14;
   text-align:center;
 }
 
-h1 { margin-top:20px; }
+h1{
+  margin-top:20px;
+  font-size:28px;
+  letter-spacing:2px;
+}
 
-.grid {
+.grid{
   display:grid;
-  grid-template-columns: repeat(6, 55px);
-  gap:6px;
+  grid-template-columns:repeat(7,50px);
+  gap:8px;
   justify-content:center;
   margin-top:30px;
 }
 
-input {
-  width:55px;
-  height:55px;
-  font-size:26px;
-  text-align:center;
-  background:#111;
-  color:#39FF14;
-  border:1px solid #39FF14;
+.cell{
+  width:50px;
+  height:50px;
+  border:2px solid #39FF14;
   border-radius:8px;
-  text-transform:uppercase;
+  background:#0a0f0a;
 }
 
-button {
-  margin-top:25px;
-  padding:12px 25px;
-  background:#39FF14;
+.cell input{
+  width:100%;
+  height:100%;
+  background:transparent;
   border:none;
-  cursor:pointer;
+  color:#39FF14;
+  font-size:24px;
+  text-align:center;
+  outline:none;
+}
+
+.correct{ background:#123d12 !important; }
+.wrong{ background:#3d1212 !important; border-color:red !important; }
+
+button{
+  margin-top:20px;
+  padding:12px 30px;
+  border:none;
+  background:#39FF14;
   font-weight:bold;
   border-radius:20px;
+  cursor:pointer;
+  transition:0.2s;
 }
 
-.panel {
+button:hover{ transform:scale(1.05); }
+
+#phoneBlock{ display:none; margin-top:20px; }
+
+input.phone{
+  padding:10px;
+  border-radius:10px;
+  border:1px solid #39FF14;
+  background:#000;
+  color:#39FF14;
+}
+
+#promo{
+  font-size:28px;
   margin-top:20px;
+  font-weight:bold;
 }
 </style>
 </head>
+
 <body>
 
-<h1>PARALLEL ENTERPRISE CROSSWORD</h1>
-<p>Введи слово: ЗЕЛЕНИЙ</p>
+<h1>PARALLEL WOW CROSSWORD</h1>
+<p>Збери фінальне слово</p>
 
 <div class="grid" id="grid"></div>
 
 <button onclick="check()">Перевірити</button>
 
-<div class="panel" id="result"></div>
+<div id="phoneBlock">
+  <h3>Введи номер</h3>
+  <input id="phone" class="phone" placeholder="+380XXXXXXXXX"><br><br>
+  <button onclick="sendCode()">Отримати код</button>
+
+  <div id="codeBlock" style="display:none">
+    <input id="code" placeholder="Код"><br><br>
+    <button onclick="verify()">Підтвердити</button>
+  </div>
+</div>
+
+<div id="promo"></div>
 
 <script>
 const answer = ["З","Е","Л","Е","Н","И","Й"];
-
 const grid = document.getElementById("grid");
 
 answer.forEach(() => {
-  const i = document.createElement("input");
-  i.maxLength = 1;
-  i.oninput = () => i.value = i.value.toUpperCase();
-  grid.appendChild(i);
+  const cell = document.createElement("div");
+  cell.className = "cell";
+
+  const input = document.createElement("input");
+  input.maxLength = 1;
+
+  input.oninput = () => {
+    input.value = input.value.toUpperCase();
+    cell.classList.remove("wrong","correct");
+  };
+
+  cell.appendChild(input);
+  grid.appendChild(cell);
 });
 
-function check() {
-  const inputs = document.querySelectorAll("input");
+function check(){
+  const cells = document.querySelectorAll(".cell");
   let ok = true;
 
-  inputs.forEach((i, idx) => {
-    if(i.value !== answer[idx]) ok = false;
+  cells.forEach((c, i) => {
+    const val = c.querySelector("input").value;
+    if(val === answer[i]){
+      c.classList.add("correct");
+    } else {
+      c.classList.add("wrong");
+      ok = false;
+    }
   });
 
-  document.getElementById("result").innerText =
-    ok ? "WIN ✅ (готово для SMS этапа)" : "TRY AGAIN ❌";
+  if(ok){
+    document.getElementById("phoneBlock").style.display="block";
+    window.scrollTo(0,document.body.scrollHeight);
+  }
+}
+
+async function sendCode(){
+  const phone = document.getElementById("phone").value;
+
+  const r = await fetch("/send-code",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({phone, consent:true, ageConfirmed:true})
+  });
+
+  const d = await r.json();
+
+  if(d.success){
+    alert("Код відправлено (дивись сервер лог)");
+    document.getElementById("codeBlock").style.display="block";
+  } else {
+    alert(d.error);
+  }
+}
+
+async function verify(){
+  const phone = document.getElementById("phone").value;
+  const code = document.getElementById("code").value;
+
+  const r = await fetch("/verify-code",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({phone, code})
+  });
+
+  const d = await r.json();
+
+  if(d.success){
+    document.getElementById("promo").innerText = d.promo;
+  } else {
+    alert(d.error);
+  }
 }
 </script>
 
@@ -187,7 +214,31 @@ function check() {
   `);
 });
 
-/* ---------------- START (RENDER SAFE) ---------------- */
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("ENTERPRISE SERVER RUNNING ON " + PORT);
+/* ----------- API ----------- */
+app.post("/send-code",(req,res)=>{
+  const { phone } = req.body;
+
+  const code = generateCode();
+  smsStore[phone] = code;
+
+  console.log("SMS:", phone, code);
+
+  res.json({success:true});
+});
+
+app.post("/verify-code",(req,res)=>{
+  const { phone, code } = req.body;
+
+  if(smsStore[phone] !== code)
+    return res.json({success:false,error:"wrong code"});
+
+  const promo = generatePromo();
+  users[phone] = true;
+
+  res.json({success:true,promo});
+});
+
+/* ----------- START ----------- */
+app.listen(PORT,"0.0.0.0",()=>{
+  console.log("WOW SERVER:",PORT);
 });
