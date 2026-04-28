@@ -7,13 +7,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 📁 Статичні файли (звуки, фото)
+// Статичні файли для звуків та фото
 app.use("/sounds", express.static(path.join(__dirname, "public")));
 app.use("/images", express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3000;
 
-/* ---------- DB ---------- */
+/* ========== БАЗА ДАНИХ ========== */
 const db = new Database("db.sqlite");
 
 db.prepare(`
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS codes (
 )
 `).run();
 
-/* ---------- HELPERS ---------- */
+/* ========== ДОПОМІЖНІ ФУНКЦІЇ ========== */
 function genCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -40,7 +40,7 @@ function genPromo() {
   return "PWR-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-/* ---------- ФРОНТЕНД (ОНОВЛЕНИЙ ДИЗАЙН + ФОТО) ---------- */
+/* ========== ГОЛОВНА СТОРІНКА ========== */
 app.get("/", (req, res) => {
   res.send(`
 <!DOCTYPE html>
@@ -48,68 +48,65 @@ app.get("/", (req, res) => {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>🔥 PARALLEL SHOW | 31 річчя</title>
+<title>🔥 Запальний конкурс від Parallel | 31 річчя</title>
 <style>
   * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    user-select: none;
   }
 
   body {
-    background: linear-gradient(135deg, #0a1f0a 0%, #061206 100%);
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: linear-gradient(135deg, #0a1a0a 0%, #030803 100%);
+    font-family: 'Segoe UI', system-ui, 'Roboto', sans-serif;
     min-height: 100vh;
-    padding: 20px;
+    padding: 16px;
     color: #eef5e6;
   }
 
   .container {
-    max-width: 850px;
+    max-width: 1000px;
     margin: 0 auto;
   }
 
-  /* ШАПКА З ЛОГО І ФОТО АЗК */
-  .hero {
-    background: rgba(10, 20, 8, 0.7);
+  /* Шапка */
+  .hero-header {
+    background: rgba(8, 20, 5, 0.85);
     backdrop-filter: blur(10px);
     border-radius: 48px;
     border: 1px solid #39ff14;
     padding: 20px 25px;
-    margin-bottom: 30px;
+    margin-bottom: 25px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 20px;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.4);
   }
-
-  .logo-area h1 {
-    font-size: 2rem;
-    background: linear-gradient(135deg, #b3ff99, #39ff14);
+  .brand h1 {
+    font-size: 1.8rem;
+    background: linear-gradient(135deg, #ccff99, #39ff14);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    letter-spacing: 3px;
+    letter-spacing: 2px;
   }
-  .logo-area p {
+  .brand p {
     font-size: 0.8rem;
-    color: #bcf0a6;
+    color: #b8f2a0;
   }
-
-  .station-photo {
-    max-width: 280px;
-    border-radius: 32px;
+  .gas-station-img {
+    max-width: 260px;
+    border-radius: 28px;
     border: 2px solid #39ff14;
-    box-shadow: 0 0 15px #39ff1470;
+    box-shadow: 0 0 12px #39ff1470;
     object-fit: cover;
   }
 
-  /* ТАЙМЕР І ПРОГРЕС */
-  .info-panel {
-    background: #071007cc;
+  /* Інформаційна панель */
+  .info-bar {
+    background: #0a130ae0;
     border-radius: 60px;
     padding: 10px 20px;
     margin: 15px 0;
@@ -118,106 +115,120 @@ app.get("/", (req, res) => {
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
-    border: 1px solid #2a6b2a;
+    border: 1px solid #2e6b2e;
   }
-  .timer-box {
+  .timer {
     font-family: monospace;
     font-size: 2rem;
     font-weight: bold;
     background: #00000066;
     padding: 5px 20px;
     border-radius: 50px;
-    color: #fcffb3;
+    color: #ffffb0;
   }
-  .danger {
-    color: #ff5e5e;
+  .timer-danger {
+    color: #ff6666;
     text-shadow: 0 0 6px red;
-    animation: pulse 0.5s infinite;
+    animation: pulse 0.6s infinite;
   }
   @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } }
 
-  /* ПИТАННЯ */
-  .question-card {
-    background: #0f1a0ecc;
-    border-radius: 36px;
-    padding: 25px;
-    text-align: center;
+  /* Картка питання */
+  .quiz-card {
+    background: #0f1a0fcc;
+    backdrop-filter: blur(4px);
+    border-radius: 40px;
+    padding: 20px;
     border: 1px solid #39ff14;
     margin: 20px 0;
   }
+  .question-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .question-icon {
+    font-size: 2rem;
+  }
   .question-text {
-    font-size: 1.7rem;
+    font-size: 1.5rem;
     font-weight: bold;
-    letter-spacing: 1px;
-    margin-bottom: 25px;
+    flex: 1;
+  }
+  .station-mini {
+    max-width: 100px;
+    border-radius: 20px;
+    border: 1px solid #39ff14;
   }
 
-  /* ПОЛЯ ДЛЯ ВВОДУ ВІДПОВІДІ */
-  .answer-row {
+  /* Рядок відповіді (клітинки з інпутами) */
+  .answer-grid {
     display: flex;
     justify-content: center;
     gap: 12px;
     flex-wrap: wrap;
     margin: 25px 0;
   }
-  .letter-cell {
-    width: 60px;
-    height: 70px;
+  .letter-box {
+    width: 65px;
+    height: 75px;
     background: #0a130a;
     border: 2px solid #39ff14;
-    border-radius: 16px;
+    border-radius: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: 0.1s;
   }
-  .letter-cell input {
+  .letter-box input {
     width: 100%;
     height: 100%;
     background: transparent;
     border: none;
     text-align: center;
-    font-size: 28px;
+    font-size: 30px;
     font-weight: bold;
-    color: #ffffff;
+    color: #fff;
     text-transform: uppercase;
     outline: none;
     font-family: monospace;
     border-radius: 14px;
+    caret-color: #39ff14;
   }
-  .cell-correct {
+  .correct-cell {
     background: #1f6b1f;
     border-color: #aaffaa;
-    box-shadow: 0 0 8px #39ff14;
+    box-shadow: 0 0 10px #39ff14;
   }
-  .cell-wrong {
+  .wrong-cell {
     background: #7a2e2e;
     border-color: #ff8888;
   }
 
-  /* КНОПКИ */
-  .action-btn {
+  /* Кнопки */
+  .btn {
     background: #39ff14;
     border: none;
     padding: 12px 32px;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     font-weight: bold;
     border-radius: 60px;
     cursor: pointer;
-    margin: 15px 0;
+    margin: 10px 5px;
     transition: 0.2s;
     color: #052005;
   }
-  .action-btn:hover {
-    background: #7eff5a;
+  .btn:hover {
+    background: #6eff4a;
     transform: scale(1.02);
   }
 
-  /* СЕКЦІЯ ТЕЛЕФОНУ */
-  .phone-card {
+  /* Секція телефону */
+  .phone-section {
     background: #0d1a0dee;
     border-radius: 32px;
-    padding: 20px;
+    padding: 24px;
     text-align: center;
     margin-top: 25px;
     border: 1px solid #39ff14;
@@ -232,14 +243,15 @@ app.get("/", (req, res) => {
     text-align: center;
     width: 260px;
   }
-  #resultPromo {
-    font-size: 1.9rem;
+  .final-promo {
+    font-size: 1.6rem;
     font-weight: bold;
     color: #ffee88;
-    word-break: break-all;
+    margin-top: 15px;
+    word-break: break-word;
   }
   .hidden { display: none; }
-  .flash {
+  .flash-effect {
     position: fixed;
     top: 0; left: 0;
     width: 100%; height: 100%;
@@ -249,64 +261,71 @@ app.get("/", (req, res) => {
     z-index: 9999;
   }
   .flash-active {
-    animation: blinkFlash 0.25s ease-out;
+    animation: flashAnim 0.25s ease-out;
   }
-  @keyframes blinkFlash {
-    0% { opacity: 0.9; }
+  @keyframes flashAnim {
+    0% { opacity: 0.8; }
     100% { opacity: 0; }
   }
   @media (max-width: 600px) {
-    .letter-cell { width: 45px; height: 55px; }
-    .letter-cell input { font-size: 22px; }
-    .question-text { font-size: 1.2rem; }
-    .station-photo { max-width: 200px; }
+    .letter-box { width: 48px; height: 58px; }
+    .letter-box input { font-size: 24px; }
+    .question-text { font-size: 1.1rem; }
+    .gas-station-img { max-width: 180px; }
+    .station-mini { max-width: 70px; }
   }
 </style>
 </head>
 <body>
 
 <div class="container">
-  <div class="hero">
-    <div class="logo-area">
-      <h1>⚡ PARALLEL ⚡</h1>
-      <p>НАЦІОНАЛЬНА МЕРЕЖА АЗК</p>
-      <p>🔥 31 річчя 🔥</p>
+  <!-- Верхня частина з фото АЗК -->
+  <div class="hero-header">
+    <div class="brand">
+      <h1>⚡ Запальний конкурс від PARALLEL ⚡</h1>
+      <p>31 річчя національної мережі АЗК</p>
     </div>
-    <!-- ФОТО АЗК PARALLEL (замініть URL на реальне фото, якщо треба) -->
-    <img class="station-photo" src="https://upload.wikimedia.org/wikipedia/commons/3/34/POL_Orlen_stacja_paliw.jpg" alt="АЗК Parallel" onerror="this.src='https://via.placeholder.com/280x160?text=PARALLEL+AZK'">
+    <img class="gas-station-img" src="https://upload.wikimedia.org/wikipedia/commons/3/34/POL_Orlen_stacja_paliw.jpg" 
+         alt="АЗК Parallel" onerror="this.src='https://via.placeholder.com/260x140?text=PARALLEL+STATION'">
   </div>
 
-  <div class="info-panel">
+  <div class="info-bar">
     <span>⏱️ Час на питання</span>
-    <span class="timer-box" id="timerDisplay">10</span>
-    <button class="action-btn" id="submitBtn">✅ Відповісти</button>
+    <span class="timer" id="timerValue">12</span>
+    <button class="btn" id="submitAnswerBtn">✅ Відповісти</button>
   </div>
 
-  <div class="question-card">
-    <div class="question-text" id="questionText"></div>
-    <div class="answer-row" id="answerRow"></div>
-  </div>
-
-  <div id="phoneSection" class="phone-card hidden">
-    <h3>🎉 Вітаємо з перемогою!</h3>
-    <p>Введіть номер, щоб отримати промокод</p>
-    <input type="tel" id="phoneInput" class="phone-input" placeholder="+380XXXXXXXXX">
-    <br>
-    <button class="action-btn" onclick="sendSMS()">📲 Надіслати код</button>
-    <div id="codeBlock" class="hidden" style="margin-top: 15px;">
-      <input type="text" id="codeInput" class="phone-input" placeholder="Код з SMS" style="width:150px">
-      <button class="action-btn" onclick="verifyCode()">Перевірити</button>
+  <div class="quiz-card" id="quizCard">
+    <div class="question-header">
+      <span class="question-icon">⛽</span>
+      <span class="question-text" id="questionText"></span>
+      <!-- маленьке фото поруч з питанням -->
+      <img class="station-mini" id="miniStationImg" src="https://upload.wikimedia.org/wikipedia/commons/3/34/POL_Orlen_stacja_paliw.jpg" alt="AZK">
     </div>
-    <div id="finalPromo" style="margin-top: 20px; font-size: 1.3rem;"></div>
+    <div class="answer-grid" id="answerGrid"></div>
   </div>
 
-  <div id="resultMessage" style="text-align:center; margin-top:20px;"></div>
+  <!-- Секція після перемоги -->
+  <div id="phoneBlock" class="phone-section hidden">
+    <h3>🏆 Вітаємо! Ви виграли промокод 🏆</h3>
+    <p>Введіть номер телефону для участі в розіграші</p>
+    <input type="tel" id="phoneNumber" class="phone-input" placeholder="+380XXXXXXXXX">
+    <br>
+    <button class="btn" id="sendSmsBtn">📲 Надіслати SMS-код</button>
+    <div id="codeArea" class="hidden" style="margin-top: 15px;">
+      <input type="text" id="smsCode" class="phone-input" placeholder="Код з SMS" style="width:150px">
+      <button class="btn" id="verifyCodeBtn">Перевірити</button>
+    </div>
+    <div id="promoResult" class="final-promo"></div>
+  </div>
+  
+  <div id="endMessage" style="text-align:center; margin:20px 0;"></div>
 </div>
 
-<div class="flash" id="flashOverlay"></div>
+<div class="flash-effect" id="flashOverlay"></div>
 
 <script>
-  // ==================== ПИТАННЯ ====================
+  // ==================== ПИТАННЯ ТА ВІДПОВІДІ ====================
   const QUESTIONS = [
     "Фірмовий колір",
     "Засновник",
@@ -326,167 +345,155 @@ app.get("/", (req, res) => {
     "ХОТДОГ"
   ];
 
-  let currentIndex = 0;
-  let timeLeft = 12;
+  let currentIdx = 0;
+  let timeRemaining = 12;
   let timerInterval = null;
-  let answerCells = [];
-  let gameActive = true;
-  let userAnswers = [];
-
-  // Звуки (опціонально)
-  const soundCorrect = new Audio("/sounds/correct.mp3");
-  const soundWrong = new Audio("/sounds/wrong.mp3");
-  const soundTick = new Audio("/sounds/tick.mp3");
+  let active = true;
+  let userInputs = [];      // зберігає введені літери для поточного питання
 
   // DOM елементи
   const questionEl = document.getElementById("questionText");
-  const answerRow = document.getElementById("answerRow");
-  const timerDisplay = document.getElementById("timerDisplay");
-  const submitBtn = document.getElementById("submitBtn");
-  const flashOverlay = document.getElementById("flashOverlay");
+  const answerGrid = document.getElementById("answerGrid");
+  const timerSpan = document.getElementById("timerValue");
+  const submitBtn = document.getElementById("submitAnswerBtn");
+  const flashDiv = document.getElementById("flashOverlay");
 
+  // Допоміжні функції
   function playFlash() {
-    flashOverlay.classList.remove("flash-active");
-    setTimeout(() => flashOverlay.classList.add("flash-active"), 5);
-    setTimeout(() => flashOverlay.classList.remove("flash-active"), 300);
+    flashDiv.classList.remove("flash-active");
+    setTimeout(() => flashDiv.classList.add("flash-active"), 5);
+    setTimeout(() => flashDiv.classList.remove("flash-active"), 300);
   }
 
-  // Побудова полів для введення (клітинки)
-  function buildCurrentQuestion() {
-    answerRow.innerHTML = "";
-    answerCells = [];
-    const correctAnswer = ANSWERS[currentIndex];
+  // Побудова полів введення для поточного питання
+  function buildInputsForCurrent() {
+    answerGrid.innerHTML = "";
+    userInputs = [];
+    const correctAnswer = ANSWERS[currentIdx];
     const letters = correctAnswer.split("");
 
-    letters.forEach((letter, idx) => {
-      const cellDiv = document.createElement("div");
-      cellDiv.className = "letter-cell";
+    letters.forEach((expectedLetter, pos) => {
+      const box = document.createElement("div");
+      box.className = "letter-box";
       const input = document.createElement("input");
       input.type = "text";
       input.maxLength = 1;
-      input.dataset.index = idx;
-      input.dataset.expected = letter;
-      input.value = (userAnswers[currentIndex] && userAnswers[currentIndex][idx]) || "";
-
+      input.dataset.pos = pos;
+      input.dataset.expected = expectedLetter;
+      
       input.addEventListener("input", (e) => {
         let val = e.target.value;
         if (val.length) {
-          let upper = val.charAt(val.length - 1).toUpperCase();
-          if (/^[A-ZА-ЯЄЇҐІ]$/i.test(upper)) {
-            e.target.value = upper;
-            // зберігаємо у тимчасову відповідь
-            if (!userAnswers[currentIndex]) userAnswers[currentIndex] = [];
-            userAnswers[currentIndex][idx] = upper;
-            // перехід до наступного поля
-            const nextInput = cellDiv.nextElementSibling?.querySelector("input");
-            if (nextInput) nextInput.focus();
+          let upperVal = val.charAt(val.length - 1).toUpperCase();
+          if (/^[A-ZА-ЯЄЇҐІ]$/i.test(upperVal)) {
+            e.target.value = upperVal;
+            userInputs[pos] = upperVal;
+            // автоматичний перехід до наступного поля
+            const nextBox = box.nextElementSibling;
+            if (nextBox) {
+              const nextInput = nextBox.querySelector("input");
+              if (nextInput) nextInput.focus();
+            }
           } else {
             e.target.value = "";
           }
         } else {
-          if (userAnswers[currentIndex]) userAnswers[currentIndex][idx] = "";
+          userInputs[pos] = "";
         }
       });
-
-      cellDiv.appendChild(input);
-      answerRow.appendChild(cellDiv);
-      answerCells.push(cellDiv);
+      
+      box.appendChild(input);
+      answerGrid.appendChild(box);
     });
+  }
+
+  // Перевірка та підсвічування
+  function evaluateAndShowResult() {
+    if (!active) return;
+    stopTimer();
+    const correctAnswer = ANSWERS[currentIdx];
+    const userAnswer = userInputs.join("");
+    const boxes = document.querySelectorAll(".letter-box");
+    
+    // Підсвітка правильно/неправильно
+    for (let i = 0; i < correctAnswer.length; i++) {
+      const box = boxes[i];
+      const inp = box.querySelector("input");
+      const userChar = (inp.value || "").toUpperCase();
+      if (userChar === correctAnswer[i]) {
+        box.classList.add("correct-cell");
+        box.classList.remove("wrong-cell");
+      } else {
+        box.classList.add("wrong-cell");
+        box.classList.remove("correct-cell");
+      }
+    }
+    
+    if (userAnswer === correctAnswer) {
+      // Правильна відповідь
+      playFlash();
+      setTimeout(() => {
+        currentIdx++;
+        if (currentIdx < QUESTIONS.length) {
+          // Наступне питання
+          timeRemaining = 12;
+          timerSpan.innerText = timeRemaining;
+          questionEl.innerText = QUESTIONS[currentIdx];
+          buildInputsForCurrent();
+          startTimer();
+        } else {
+          // Гра завершена перемогою
+          active = false;
+          document.getElementById("phoneBlock").classList.remove("hidden");
+          document.getElementById("endMessage").innerHTML = "🎉 Ви пройшли всі випробування! Отримайте промокод 🎉";
+          playFlash();
+        }
+      }, 500);
+    } else {
+      // Неправильна відповідь — програш
+      playFlash();
+      setTimeout(() => {
+        alert("❌ Неправильна відповідь. Конкурс завершено. Спробуйте ще раз!");
+        location.reload();
+      }, 400);
+    }
   }
 
   // Таймер
   function startTimer() {
     if (timerInterval) clearInterval(timerInterval);
-    timerDisplay.innerText = timeLeft;
-    timerDisplay.classList.remove("danger");
-
+    timerSpan.innerText = timeRemaining;
+    timerSpan.classList.remove("timer-danger");
     timerInterval = setInterval(() => {
-      if (!gameActive) return;
-      timeLeft--;
-      timerDisplay.innerText = timeLeft;
-      if (timeLeft <= 3) {
-        timerDisplay.classList.add("danger");
-        if (soundTick) soundTick.play().catch(e=>{});
+      if (!active) return;
+      timeRemaining--;
+      timerSpan.innerText = timeRemaining;
+      if (timeRemaining <= 3) {
+        timerSpan.classList.add("timer-danger");
       }
-      if (timeLeft <= 0) {
+      if (timeRemaining <= 0) {
         clearInterval(timerInterval);
         handleTimeout();
       }
     }, 1000);
   }
-
+  
   function stopTimer() {
     if (timerInterval) clearInterval(timerInterval);
   }
-
-  // Перевірка відповіді
-  function checkAnswer() {
-    stopTimer();
-    const userAnswer = (userAnswers[currentIndex] || []).join("");
-    const correctAnswer = ANSWERS[currentIndex];
-
-    // Показати правильні/неправильні літери
-    for (let i = 0; i < correctAnswer.length; i++) {
-      const cell = answerCells[i];
-      const input = cell.querySelector("input");
-      const userChar = input.value.toUpperCase() || "";
-      if (userChar === correctAnswer[i]) {
-        cell.classList.add("cell-correct");
-      } else {
-        cell.classList.add("cell-wrong");
-      }
-    }
-
-    if (userAnswer === correctAnswer) {
-      // Правильно
-      if (soundCorrect) soundCorrect.play().catch(e=>{});
-      playFlash();
-      setTimeout(() => {
-        currentIndex++;
-        if (currentIndex < QUESTIONS.length) {
-          // Наступне питання
-          timeLeft = 12;
-          questionEl.innerText = QUESTIONS[currentIndex];
-          buildCurrentQuestion();
-          startTimer();
-        } else {
-          // Вікторина завершена
-          gameActive = false;
-          document.getElementById("phoneSection").classList.remove("hidden");
-          document.getElementById("resultMessage").innerHTML = "🏆 Вітаємо! Ви пройшли всі питання! 🏆";
-          if(soundCorrect) soundCorrect.play();
-          playFlash();
-        }
-      }, 600);
-    } else {
-      // Неправильно — кінець гри
-      if (soundWrong) soundWrong.play().catch(e=>{});
-      playFlash();
-      setTimeout(() => {
-        alert("❌ Неправильна відповідь. Спробуйте ще раз з початку!");
-        location.reload();
-      }, 500);
-    }
-  }
-
+  
   function handleTimeout() {
-    if (!gameActive) return;
-    gameActive = false;
-    alert("⏰ Час вичерпано! Почніть заново.");
+    if (!active) return;
+    active = false;
+    alert("⏰ Час вийшов! Ви не встигли. Спробуйте знову.");
     location.reload();
   }
-
-  // Кнопка відповіді
-  submitBtn.onclick = () => {
-    if (!gameActive) return;
-    checkAnswer();
-  };
-
-  // SMS API
-  window.sendSMS = async () => {
-    const phone = document.getElementById("phoneInput").value.trim();
+  
+  // SMS та верифікація
+  document.getElementById("sendSmsBtn").onclick = async () => {
+    const phone = document.getElementById("phoneNumber").value.trim();
     if (!phone.match(/^\+380\d{9}$/)) {
-      alert("Невірний формат. Використовуйте +380XXXXXXXXX");
+      alert("Формат: +380XXXXXXXXX");
       return;
     }
     const resp = await fetch("/send-code", {
@@ -497,15 +504,15 @@ app.get("/", (req, res) => {
     const data = await resp.json();
     if (data.success) {
       alert("Код надіслано!");
-      document.getElementById("codeBlock").classList.remove("hidden");
+      document.getElementById("codeArea").classList.remove("hidden");
     } else {
-      alert("Помилка: " + data.error);
+      alert("Помилка: " + (data.error || ""));
     }
   };
-
-  window.verifyCode = async () => {
-    const phone = document.getElementById("phoneInput").value.trim();
-    const code = document.getElementById("codeInput").value.trim();
+  
+  document.getElementById("verifyCodeBtn").onclick = async () => {
+    const phone = document.getElementById("phoneNumber").value.trim();
+    const code = document.getElementById("smsCode").value.trim();
     const resp = await fetch("/verify-code", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -513,25 +520,36 @@ app.get("/", (req, res) => {
     });
     const data = await resp.json();
     if (data.success) {
-      document.getElementById("finalPromo").innerHTML = "🎁 Ваш промокод: <strong>" + data.promo + "</strong><br>Збережіть його для участі в розіграші!";
-      document.getElementById("resultMessage").innerHTML = "✅ Ви зареєстровані! Дякуємо за участь.";
+      document.getElementById("promoResult").innerHTML = "🎁 Ваш промокод: <strong>" + data.promo + "</strong><br>Збережіть його для участі в розіграші!";
+      document.getElementById("endMessage").innerHTML = "✅ Дякуємо! Ви в списку учасників.";
     } else {
-      alert("Невірний код або помилка");
+      alert("Код недійсний або застарів");
     }
   };
 
+  // Обробник кнопки "Відповісти"
+  submitBtn.onclick = () => {
+    if (active) evaluateAndShowResult();
+  };
+  
   // Ініціалізація гри
-  questionEl.innerText = QUESTIONS[0];
-  buildCurrentQuestion();
-  startTimer();
-  gameActive = true;
+  function initGame() {
+    currentIdx = 0;
+    timeRemaining = 12;
+    active = true;
+    questionEl.innerText = QUESTIONS[0];
+    buildInputsForCurrent();
+    startTimer();
+  }
+  
+  initGame();
 </script>
 </body>
 </html>
   `);
 });
 
-/* ========== API РОУТИ ========== */
+/* ========== API ДЛЯ SMS ========== */
 app.post("/send-code", (req, res) => {
   const { phone } = req.body;
   const code = genCode();
@@ -550,7 +568,7 @@ app.post("/verify-code", (req, res) => {
   res.json({ success: true, promo });
 });
 
-/* ========== СТАРТ СЕРВЕРА ========== */
+/* ========== ЗАПУСК ========== */
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🔥 PARALLEL SHOW запущено на порту ${PORT}`);
+  console.log(`🔥 Запальний конкурс Parallel запущено на порту ${PORT}`);
 });
