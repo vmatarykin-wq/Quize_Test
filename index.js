@@ -8,16 +8,13 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-/* ---------------- DATABASE ---------------- */
+/* ---------- DB ---------- */
 const db = new Database("db.sqlite");
 
-// таблицы
 db.prepare(`
 CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
   phone TEXT UNIQUE,
-  promo TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  promo TEXT
 )
 `).run();
 
@@ -29,157 +26,258 @@ CREATE TABLE IF NOT EXISTS codes (
 )
 `).run();
 
-/* ---------------- HELPERS ---------------- */
-function generateCode() {
+/* ---------- HELPERS ---------- */
+const WORD = "ЗЕЛЕНИЙ";
+
+function genCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-function generatePromo() {
+function genPromo() {
   return "PWR-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-/* ---------------- HEALTH ---------------- */
-app.get("/health", (req, res) => res.send("OK"));
-
-/* ---------------- MAIN PAGE ---------------- */
+/* ---------- PAGE ---------- */
 app.get("/", (req, res) => {
   res.send(`
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<title>WOW Crossword</title>
+<title>Parallel Wordle</title>
 
 <style>
 body{
-  margin:0;
+  background:#121213;
+  color:white;
   font-family:Arial;
-  background:#020402;
-  color:#39FF14;
   text-align:center;
 }
 
-h1{margin-top:20px}
+h1{
+  color:#39FF14;
+  margin-top:20px;
+}
 
 .grid{
   display:grid;
-  grid-template-columns:repeat(7,60px);
-  gap:8px;
+  gap:6px;
+  margin-top:20px;
   justify-content:center;
-  margin-top:30px;
+}
+
+.row{
+  display:grid;
+  grid-template-columns:repeat(7,50px);
+  gap:6px;
 }
 
 .cell{
-  width:60px;
-  height:60px;
-  border:2px solid #39FF14;
-  border-radius:10px;
-  transition:0.2s;
+  width:50px;
+  height:50px;
+  border:2px solid #3a3a3c;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:24px;
+  font-weight:bold;
+  text-transform:uppercase;
+  background:#121213;
 }
 
-.cell input{
-  width:100%;
-  height:100%;
-  background:transparent;
-  border:none;
-  color:#39FF14;
-  font-size:28px;
+.flip{
+  animation:flip 0.5s;
+}
+
+@keyframes flip{
+  0%{transform:rotateX(0)}
+  50%{transform:rotateX(90deg)}
+  100%{transform:rotateX(0)}
+}
+
+.green{background:#6aaa64;border:none}
+.yellow{background:#c9b458;border:none}
+.gray{background:#3a3a3c;border:none}
+
+/* keyboard */
+.keyboard{
+  margin-top:30px;
+}
+
+.key{
+  display:inline-block;
+  margin:3px;
+  padding:10px 14px;
+  background:#818384;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:bold;
+}
+
+.big{padding:10px 20px}
+
+/* phone */
+#phone{display:none;margin-top:20px}
+input{
+  padding:10px;
   text-align:center;
 }
-
-.correct{background:#0f2f0f}
-.wrong{background:#3a0f0f;border-color:red}
-
-.fade{
-  animation:fade 0.3s ease;
-}
-@keyframes fade{
-  from{transform:scale(1.2)}
-  to{transform:scale(1)}
-}
-
 button{
-  margin-top:20px;
-  padding:12px 25px;
+  margin-top:10px;
+  padding:10px 20px;
   background:#39FF14;
   border:none;
-  font-weight:bold;
-  border-radius:20px;
-  cursor:pointer;
 }
-
-#phoneBlock{display:none;margin-top:20px}
-#promo{font-size:30px;margin-top:20px}
 </style>
+
 </head>
 
 <body>
 
-<h1>PARALLEL WOW CROSSWORD</h1>
+<h1>PARALLEL WORDLE</h1>
 
 <div class="grid" id="grid"></div>
 
-<button onclick="check()">Перевірити</button>
+<div class="keyboard" id="kb"></div>
 
-<div id="phoneBlock">
-  <input id="phone" placeholder="+380XXXXXXXXX"><br><br>
-  <button onclick="sendCode()">Отримати код</button>
+<div id="phone">
+  <input id="ph" placeholder="+380XXXXXXXXX"><br>
+  <button onclick="send()">Отримати код</button>
 
   <div id="codeBlock" style="display:none">
-    <input id="code" placeholder="Код"><br><br>
-    <button onclick="verify()">Підтвердити</button>
+    <input id="cd" placeholder="код"><br>
+    <button onclick="verify()">OK</button>
   </div>
 </div>
 
-<div id="promo"></div>
+<h2 id="promo"></h2>
 
 <script>
-const answer = ["З","Е","Л","Е","Н","И","Й"];
+const WORD = "${WORD}";
+let row = 0;
+let col = 0;
+let gameOver = false;
+
 const grid = document.getElementById("grid");
 
-answer.forEach(() => {
-  const cell = document.createElement("div");
-  cell.className = "cell";
+/* create grid */
+for(let i=0;i<6;i++){
+  const r = document.createElement("div");
+  r.className="row";
 
-  const input = document.createElement("input");
-  input.maxLength = 1;
+  for(let j=0;j<7;j++){
+    const c = document.createElement("div");
+    c.className="cell";
+    r.appendChild(c);
+  }
 
-  input.oninput = () => {
-    input.value = input.value.toUpperCase();
-    cell.classList.remove("wrong","correct");
-  };
+  grid.appendChild(r);
+}
 
-  cell.appendChild(input);
-  grid.appendChild(cell);
+/* keyboard */
+const letters = "ЙЦУКЕНГШЩЗХФІВАПРОЛДЖЄЯЧСМИТЬБЮ".split("");
+const kb = document.getElementById("kb");
+
+letters.forEach(l=>{
+  const k = document.createElement("div");
+  k.className="key";
+  k.innerText=l;
+  k.onclick=()=>press(l);
+  kb.appendChild(k);
 });
 
-function check(){
-  const cells = document.querySelectorAll(".cell");
-  let ok = true;
+const enter = document.createElement("div");
+enter.className="key big";
+enter.innerText="ENTER";
+enter.onclick=submit;
+kb.appendChild(enter);
 
-  cells.forEach((c, i) => {
-    const val = c.querySelector("input").value;
+const back = document.createElement("div");
+back.className="key big";
+back.innerText="⌫";
+back.onclick=backspace;
+kb.appendChild(back);
 
-    c.classList.add("fade");
+/* input logic */
+function press(l){
+  if(gameOver || col>=7) return;
+  const cell = grid.children[row].children[col];
+  cell.innerText = l;
+  col++;
+}
 
-    if(val === answer[i]){
-      c.classList.add("correct");
-    } else {
-      c.classList.add("wrong");
-      ok = false;
-    }
+function backspace(){
+  if(col<=0) return;
+  col--;
+  grid.children[row].children[col].innerText="";
+}
 
-    setTimeout(()=>c.classList.remove("fade"),300);
-  });
+function submit(){
+  if(col < 7) return;
 
-  if(ok){
-    document.getElementById("phoneBlock").style.display="block";
-    window.scrollTo(0,document.body.scrollHeight);
+  const cells = grid.children[row].children;
+  let val = "";
+
+  for(let i=0;i<7;i++){
+    val += cells[i].innerText;
+  }
+
+  let used = WORD.split("");
+
+  for(let i=0;i<7;i++){
+    setTimeout(()=>{
+      cells[i].classList.add("flip");
+
+      if(val[i] === WORD[i]){
+        cells[i].classList.add("green");
+        used[i]=null;
+      } else {
+        const idx = used.indexOf(val[i]);
+        if(idx !== -1){
+          cells[i].classList.add("yellow");
+          used[idx]=null;
+        } else {
+          cells[i].classList.add("gray");
+        }
+      }
+
+    }, i*300);
+  }
+
+  if(val === WORD){
+    gameOver = true;
+    setTimeout(()=>{
+      document.getElementById("phone").style.display="block";
+    },2000);
+    return;
+  }
+
+  row++;
+  col=0;
+
+  if(row===6){
+    gameOver = true;
+    alert("Спробуй ще раз");
   }
 }
 
-async function sendCode(){
-  const phone = document.getElementById("phone").value;
+/* keyboard input */
+document.addEventListener("keydown",(e)=>{
+  if(gameOver) return;
+
+  if(e.key==="Enter") submit();
+  else if(e.key==="Backspace") backspace();
+  else{
+    const letter = e.key.toUpperCase();
+    if(letter.match(/[А-ЯІЇЄҐ]/)){
+      press(letter);
+    }
+  }
+});
+
+/* SMS */
+async function send(){
+  const phone = document.getElementById("ph").value;
 
   const r = await fetch("/send-code",{
     method:"POST",
@@ -190,14 +288,13 @@ async function sendCode(){
   const d = await r.json();
 
   if(d.success){
-    alert("Код відправлено");
     document.getElementById("codeBlock").style.display="block";
-  } else alert(d.error);
+  }
 }
 
 async function verify(){
-  const phone = document.getElementById("phone").value;
-  const code = document.getElementById("code").value;
+  const phone = document.getElementById("ph").value;
+  const code = document.getElementById("cd").value;
 
   const r = await fetch("/verify-code",{
     method:"POST",
@@ -209,26 +306,24 @@ async function verify(){
 
   if(d.success){
     document.getElementById("promo").innerText = d.promo;
-  } else alert(d.error);
+  }
 }
 </script>
 
 </body>
 </html>
-  `);
+`);
 });
 
-/* ---------------- API ---------------- */
+/* ---------- API ---------- */
 app.post("/send-code",(req,res)=>{
   const { phone } = req.body;
 
-  if(!phone) return res.json({success:false,error:"no phone"});
-
-  const code = generateCode();
+  const code = genCode();
 
   db.prepare("DELETE FROM codes WHERE phone=?").run(phone);
-  db.prepare("INSERT INTO codes (phone, code, expires) VALUES (?,?,?)")
-    .run(phone, code, Date.now() + 5*60*1000);
+  db.prepare("INSERT INTO codes VALUES (?,?,?)")
+    .run(phone, code, Date.now()+300000);
 
   console.log("SMS:", phone, code);
 
@@ -240,19 +335,17 @@ app.post("/verify-code",(req,res)=>{
 
   const row = db.prepare("SELECT * FROM codes WHERE phone=?").get(phone);
 
-  if(!row) return res.json({success:false,error:"no code"});
-  if(row.code !== code) return res.json({success:false,error:"wrong"});
-  if(row.expires < Date.now()) return res.json({success:false,error:"expired"});
+  if(!row || row.code !== code) return res.json({success:false});
 
-  const promo = generatePromo();
+  const promo = genPromo();
 
-  db.prepare("INSERT OR IGNORE INTO users (phone,promo) VALUES (?,?)")
+  db.prepare("INSERT OR IGNORE INTO users VALUES (?,?)")
     .run(phone, promo);
 
   res.json({success:true,promo});
 });
 
-/* ---------------- START ---------------- */
+/* ---------- START ---------- */
 app.listen(PORT,"0.0.0.0",()=>{
-  console.log("WOW DB SERVER:",PORT);
+  console.log("FINAL WORDLE RUNNING:",PORT);
 });
