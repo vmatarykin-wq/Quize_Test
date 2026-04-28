@@ -27,8 +27,6 @@ CREATE TABLE IF NOT EXISTS codes (
 `).run();
 
 /* ---------- HELPERS ---------- */
-const WORD = "ЗЕЛЕНИЙ";
-
 function genCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -37,108 +35,126 @@ function genPromo() {
   return "PWR-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-/* ---------- PAGE ---------- */
+/* ---------- FRONT (TV GAME) ---------- */
 app.get("/", (req, res) => {
   res.send(`
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Parallel Wordle</title>
+<title>Parallel Show</title>
 
 <style>
 body{
-  background:#121213;
+  margin:0;
+  background:#000;
   color:white;
   font-family:Arial;
-  text-align:center;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
 }
 
+/* TITLE */
 h1{
+  margin:20px;
   color:#39FF14;
-  margin-top:20px;
+  letter-spacing:2px;
 }
 
-.grid{
-  display:grid;
-  gap:6px;
-  margin-top:20px;
-  justify-content:center;
+/* QUESTION */
+#question{
+  font-size:22px;
+  text-align:center;
+  margin:10px;
+  max-width:320px;
+  min-height:60px;
 }
 
+/* TIMER */
+#timer{
+  font-size:32px;
+  margin:10px;
+  color:#ffcc00;
+}
+
+/* ROW */
 .row{
-  display:grid;
-  grid-template-columns:repeat(7,50px);
-  gap:6px;
+  display:flex;
+  gap:8px;
+  margin:20px;
 }
 
 .cell{
-  width:50px;
-  height:50px;
-  border:2px solid #3a3a3c;
+  width:52px;
+  height:52px;
+  border:2px solid #444;
   display:flex;
   align-items:center;
   justify-content:center;
   font-size:24px;
-  font-weight:bold;
-  text-transform:uppercase;
-  background:#121213;
+  background:#111;
 }
 
-.flip{
-  animation:flip 0.5s;
+/* reveal animation */
+.reveal{
+  animation:reveal 0.3s ease;
 }
 
-@keyframes flip{
-  0%{transform:rotateX(0)}
-  50%{transform:rotateX(90deg)}
-  100%{transform:rotateX(0)}
+@keyframes reveal{
+  0%{transform:scale(0)}
+  100%{transform:scale(1)}
 }
 
-.green{background:#6aaa64;border:none}
-.yellow{background:#c9b458;border:none}
-.gray{background:#3a3a3c;border:none}
+.correct{background:#00cc66}
+.wrong{background:#cc3333}
 
-/* keyboard */
-.keyboard{
-  margin-top:30px;
-}
-
-.key{
-  display:inline-block;
-  margin:3px;
-  padding:10px 14px;
-  background:#818384;
-  border-radius:6px;
-  cursor:pointer;
-  font-weight:bold;
-}
-
-.big{padding:10px 20px}
-
-/* phone */
-#phone{display:none;margin-top:20px}
+/* INPUT */
 input{
+  margin-top:15px;
   padding:10px;
+  font-size:18px;
   text-align:center;
 }
+
+/* BUTTON */
 button{
   margin-top:10px;
   padding:10px 20px;
   background:#39FF14;
   border:none;
+  cursor:pointer;
+}
+
+/* WIN */
+#win{
+  display:none;
+  margin-top:20px;
+  font-size:26px;
+}
+
+/* PHONE */
+#phone{
+  display:none;
+  margin-top:20px;
 }
 </style>
-
 </head>
 
 <body>
 
-<h1>PARALLEL WORDLE</h1>
+<h1>PARALLEL SHOW</h1>
 
-<div class="grid" id="grid"></div>
+<div id="question"></div>
+<div id="timer"></div>
 
-<div class="keyboard" id="kb"></div>
+<div class="row" id="row"></div>
+
+<input id="input" placeholder="Введи відповідь">
+<br>
+<button onclick="submit()">OK</button>
+
+<div id="win"></div>
 
 <div id="phone">
   <input id="ph" placeholder="+380XXXXXXXXX"><br>
@@ -150,132 +166,114 @@ button{
   </div>
 </div>
 
-<h2 id="promo"></h2>
-
 <script>
-const WORD = "${WORD}";
-let row = 0;
-let col = 0;
-let gameOver = false;
+const QUESTIONS = [
+  {q:"Фірмовий колір", a:"ЗЕЛЕНИЙ"},
+  {q:"Засновник", a:"СКМ"},
+  {q:"Місто №1", a:"КИЇВ"},
+  {q:"Власник", a:"ДУБІНІН"},
+  {q:"Фігура логотипу", a:"КВАДРАТ"},
+  {q:"Напій №1", a:"КАВА"},
+  {q:"Їжа №1", a:"ХОТДОГ"}
+];
 
-const grid = document.getElementById("grid");
+let current = 0;
+let time = 10;
+let timerInterval;
 
-/* create grid */
-for(let i=0;i<6;i++){
-  const r = document.createElement("div");
-  r.className="row";
+const qDiv = document.getElementById("question");
+const rowDiv = document.getElementById("row");
+const timerDiv = document.getElementById("timer");
 
-  for(let j=0;j<7;j++){
+/* ---------- START QUESTION ---------- */
+function startQuestion(){
+  const q = QUESTIONS[current];
+
+  qDiv.innerText = q.q;
+  rowDiv.innerHTML = "";
+
+  q.a.split("").forEach(()=>{
     const c = document.createElement("div");
     c.className="cell";
-    r.appendChild(c);
-  }
+    rowDiv.appendChild(c);
+  });
 
-  grid.appendChild(r);
+  startTimer();
 }
 
-/* keyboard */
-const letters = "ЙЦУКЕНГШЩЗХФІВАПРОЛДЖЄЯЧСМИТЬБЮ".split("");
-const kb = document.getElementById("kb");
+/* ---------- TIMER ---------- */
+function startTimer(){
+  time = 10;
+  timerDiv.innerText = time;
 
-letters.forEach(l=>{
-  const k = document.createElement("div");
-  k.className="key";
-  k.innerText=l;
-  k.onclick=()=>press(l);
-  kb.appendChild(k);
-});
+  clearInterval(timerInterval);
 
-const enter = document.createElement("div");
-enter.className="key big";
-enter.innerText="ENTER";
-enter.onclick=submit;
-kb.appendChild(enter);
+  timerInterval = setInterval(()=>{
+    time--;
+    timerDiv.innerText = time;
 
-const back = document.createElement("div");
-back.className="key big";
-back.innerText="⌫";
-back.onclick=backspace;
-kb.appendChild(back);
-
-/* input logic */
-function press(l){
-  if(gameOver || col>=7) return;
-  const cell = grid.children[row].children[col];
-  cell.innerText = l;
-  col++;
-}
-
-function backspace(){
-  if(col<=0) return;
-  col--;
-  grid.children[row].children[col].innerText="";
-}
-
-function submit(){
-  if(col < 7) return;
-
-  const cells = grid.children[row].children;
-  let val = "";
-
-  for(let i=0;i<7;i++){
-    val += cells[i].innerText;
-  }
-
-  let used = WORD.split("");
-
-  for(let i=0;i<7;i++){
-    setTimeout(()=>{
-      cells[i].classList.add("flip");
-
-      if(val[i] === WORD[i]){
-        cells[i].classList.add("green");
-        used[i]=null;
-      } else {
-        const idx = used.indexOf(val[i]);
-        if(idx !== -1){
-          cells[i].classList.add("yellow");
-          used[idx]=null;
-        } else {
-          cells[i].classList.add("gray");
-        }
-      }
-
-    }, i*300);
-  }
-
-  if(val === WORD){
-    gameOver = true;
-    setTimeout(()=>{
-      document.getElementById("phone").style.display="block";
-    },2000);
-    return;
-  }
-
-  row++;
-  col=0;
-
-  if(row===6){
-    gameOver = true;
-    alert("Спробуй ще раз");
-  }
-}
-
-/* keyboard input */
-document.addEventListener("keydown",(e)=>{
-  if(gameOver) return;
-
-  if(e.key==="Enter") submit();
-  else if(e.key==="Backspace") backspace();
-  else{
-    const letter = e.key.toUpperCase();
-    if(letter.match(/[А-ЯІЇЄҐ]/)){
-      press(letter);
+    if(time === 0){
+      clearInterval(timerInterval);
+      fail();
     }
-  }
-});
+  },1000);
+}
 
-/* SMS */
+/* ---------- SUBMIT ---------- */
+function submit(){
+  clearInterval(timerInterval);
+
+  const val = document.getElementById("input").value.toUpperCase();
+  const ans = QUESTIONS[current].a;
+  const cells = rowDiv.children;
+
+  for(let i=0;i<ans.length;i++){
+    setTimeout(()=>{
+      cells[i].innerText = ans[i];
+      cells[i].classList.add("reveal");
+
+      if(val[i] === ans[i]){
+        cells[i].classList.add("correct");
+      } else {
+        cells[i].classList.add("wrong");
+      }
+    }, i*200);
+  }
+
+  if(val === ans){
+    setTimeout(next, ans.length * 200 + 500);
+  } else {
+    setTimeout(fail, ans.length * 200 + 500);
+  }
+}
+
+/* ---------- NEXT ---------- */
+function next(){
+  current++;
+  document.getElementById("input").value = "";
+
+  if(current >= QUESTIONS.length){
+    win();
+  } else {
+    startQuestion();
+  }
+}
+
+/* ---------- FAIL ---------- */
+function fail(){
+  alert("❌ Неправильно");
+  location.reload();
+}
+
+/* ---------- WIN ---------- */
+function win(){
+  document.getElementById("win").style.display="block";
+  document.getElementById("win").innerText = "🎉 ПЕРЕМОГА!";
+
+  document.getElementById("phone").style.display="block";
+}
+
+/* ---------- SMS ---------- */
 async function send(){
   const phone = document.getElementById("ph").value;
 
@@ -305,14 +303,17 @@ async function verify(){
   const d = await r.json();
 
   if(d.success){
-    document.getElementById("promo").innerText = d.promo;
+    document.getElementById("win").innerText = "🎉 " + d.promo;
   }
 }
+
+/* ---------- START ---------- */
+startQuestion();
 </script>
 
 </body>
 </html>
-`);
+  `);
 });
 
 /* ---------- API ---------- */
@@ -345,7 +346,7 @@ app.post("/verify-code",(req,res)=>{
   res.json({success:true,promo});
 });
 
-/* ---------- START ---------- */
-app.listen(PORT,"0.0.0.0",()=>{
-  console.log("FINAL WORDLE RUNNING:",PORT);
+/* ---------- START SERVER ---------- */
+app.listen(PORT, "0.0.0.0", () => {
+  console.log("TV SHOW RUNNING ON PORT:", PORT);
 });
