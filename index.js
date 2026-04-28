@@ -2,25 +2,17 @@ const express = require("express");
 const cors = require("cors");
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-// Render PORT
 const PORT = process.env.PORT || 3000;
 
-/* ------------------ SECURITY / BASIC HEADERS ------------------ */
-app.use((req, res, next) => {
-  res.setHeader("X-Robots-Tag", "noindex, nofollow");
-  next();
-});
-
-/* ------------------ STORAGE ------------------ */
+/* ---------------- STORAGE ---------------- */
 const smsStore = {};
 const users = {};
 const ipStore = {};
 
-/* ------------------ HELPERS ------------------ */
+/* ---------------- HELPERS ---------------- */
 function generateCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -35,7 +27,7 @@ function getIP(req) {
     .trim() || req.socket.remoteAddress;
 }
 
-function isRateLimited(ip) {
+function rateLimit(ip) {
   const now = Date.now();
   if (!ipStore[ip]) ipStore[ip] = [];
 
@@ -47,55 +39,28 @@ function isRateLimited(ip) {
   return false;
 }
 
-/* ------------------ HEALTH CHECK (IMPORTANT FOR RENDER) ------------------ */
+/* ---------------- HEALTH ---------------- */
 app.get("/health", (req, res) => {
-  res.status(200).send("OK");
+  res.send("OK");
 });
 
-/* ------------------ MAIN ------------------ */
-app.get("/", (req, res) => {
-  res.send("Server is running 🚀");
-});
-
-/* ------------------ CAMPAIGN INFO ------------------ */
-app.get("/campaign-info", (req, res) => {
-  res.json({
-    title: "АКЦІЯ PARALLEL до 31-річчя!",
-    prizes: [
-      "1000$ на паливо",
-      "20л пального (10 призів)",
-      "10л (20 призів)",
-      "50 кав",
-      "100 хот-догів"
-    ],
-    rules: "Повністю правильний тест → SMS → промокод"
-  });
-});
-
-/* ------------------ SEND CODE ------------------ */
+/* ---------------- SMS SEND ---------------- */
 app.post("/send-code", (req, res) => {
   const { phone, consent, ageConfirmed } = req.body;
   const ip = getIP(req);
 
-  if (!consent)
-    return res.json({ success: false, error: "Потрібна згода" });
-
-  if (!ageConfirmed)
-    return res.json({ success: false, error: "18+" });
-
-  if (isRateLimited(ip))
-    return res.json({ success: false, error: "Забагато спроб" });
-
+  if (!consent) return res.json({ success: false, error: "consent required" });
+  if (!ageConfirmed) return res.json({ success: false, error: "18+" });
+  if (rateLimit(ip)) return res.json({ success: false, error: "too many attempts" });
   if (!phone || !phone.match(/^\+380\d{9}$/))
-    return res.json({ success: false, error: "Невірний номер" });
-
+    return res.json({ success: false, error: "invalid phone" });
   if (users[phone])
-    return res.json({ success: false, error: "Ви вже брали участь" });
+    return res.json({ success: false, error: "already used" });
 
   const code = generateCode();
   smsStore[phone] = code;
 
-  console.log("SMS CODE:", phone, code);
+  console.log("SMS:", phone, code);
 
   setTimeout(() => {
     if (smsStore[phone] === code) delete smsStore[phone];
@@ -104,27 +69,25 @@ app.post("/send-code", (req, res) => {
   res.json({ success: true });
 });
 
-/* ------------------ VERIFY CODE ------------------ */
+/* ---------------- VERIFY ---------------- */
 app.post("/verify-code", (req, res) => {
   const { phone, code } = req.body;
 
   if (!smsStore[phone])
-    return res.json({ success: false, error: "Код прострочений" });
+    return res.json({ success: false, error: "expired" });
 
   if (smsStore[phone] !== code)
-    return res.json({ success: false, error: "Невірний код" });
+    return res.json({ success: false, error: "wrong code" });
 
   const promo = generatePromo();
 
   users[phone] = true;
   delete smsStore[phone];
 
-  console.log("NEW USER:", phone, promo);
-
   res.json({ success: true, promo });
 });
 
-/* ------------------ START SERVER (RENDER SAFE) ------------------ */
+/* ---------------- START ---------------- */
 app.listen(PORT, "0.0.0.0", () => {
-  console.log("🚀 Server running on port " + PORT);
+  console.log("Server running on " + PORT);
 });
