@@ -1,7 +1,6 @@
 {
-  "name": "parallel-sms-quiz",
+  "name": "parallel-crossword-prod",
   "version": "1.0.0",
-  "description": "Production SMS quiz system",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
